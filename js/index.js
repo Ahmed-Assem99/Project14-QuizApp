@@ -1,3 +1,6 @@
+import Quiz from './quiz.js';
+import Question from './question.js';
+
 /**
  * ============================================
  * MAIN ENTRY POINT (index.js)
@@ -32,94 +35,162 @@
 
 
 // ============================================
-// TODO: Get DOM Element References
-// ============================================
-// Use document.getElementById() and document.querySelector()
+const quizOptionsForm = document.getElementById('quizOptions');
+const playerNameInput = document.getElementById('playerName');
+const categoryInput = document.getElementById('categoryMenu');
+const difficultyOptions = document.getElementById('difficultyOptions');
+const questionsNumber = document.getElementById('questionsNumber');
+const startQuizBtn = document.getElementById('startQuiz');
+const questionsContainer = document.querySelector('.questions-container');
 
 
 // ============================================
-// TODO: Create variable to store current quiz
-// ============================================
-// let currentQuiz = null;
+let currentQuiz = null;
 
 
 // ============================================
-// TODO: Create showLoading() function
-// ============================================
-// Set questionsContainer.innerHTML to loading HTML
-// See index.html for the HTML structure
+function showLoading() {
+  questionsContainer.innerHTML = `
+    <div class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">Loading Questions...</p>
+    </div>
+  `;
+}
 
 
 // ============================================
-// TODO: Create hideLoading() function
-// ============================================
-// Find and remove the loading overlay
+function hideLoading() {
+  questionsContainer.querySelector('.loading-overlay')?.remove();
+}
 
 
 // ============================================
-// TODO: Create showError(message) function
-// ============================================
-// Set questionsContainer.innerHTML to error HTML
-// Include the message parameter in the display
-// Add click listener to retry button that calls resetToStart()
+function showError(message) {
+  questionsContainer.innerHTML = `
+    <div class="game-card error-card">
+      <div class="error-icon">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3 class="error-title">Oops! Something went wrong</h3>
+      <p class="error-message">${message}</p>
+      <button class="btn-play retry-btn">
+        <i class="fa-solid fa-rotate-right"></i> Try Again
+      </button>
+    </div>
+  `;
+
+  questionsContainer.querySelector('.retry-btn').addEventListener('click', resetToStart);
+}
 
 
-// ============================================
-// TODO: Create validateForm() function
-// ============================================
-// Return object: { isValid: boolean, error: string | null }
-// Check:
-// 1. questionsNumber has a value
-// 2. Value is >= 1 (minimum questions)
-// 3. Value is <= 50 (maximum questions)
+function validateForm() {
+  const value = questionsNumber.value.trim();
+
+  if (!value) {
+    return { isValid: false, error: 'Please enter the number of questions.' };
+  }
+
+  const numberOfQuestions = Number(value);
+
+  if (numberOfQuestions < 1) {
+    return { isValid: false, error: 'Please enter at least 1 question.' };
+  }
+
+  if (numberOfQuestions > 50) {
+    return { isValid: false, error: 'Please enter no more than 50 questions.' };
+  }
+
+  return { isValid: true, error: null };
+}
 
 
-// ============================================
-// TODO: Create showFormError(message) function
-// ============================================
-// Create error div with class 'form-error'
-// Insert before the start button
-// Remove after 3 seconds with fade effect
+function showFormError(message) {
+  quizOptionsForm.querySelector('.form-error')?.remove();
+
+  const error = document.createElement('div');
+  error.className = 'form-error';
+  error.textContent = message;
+  startQuizBtn.before(error);
+
+  setTimeout(() => {
+    error.style.transition = 'opacity 0.3s ease';
+    error.style.opacity = '0';
+    setTimeout(() => error.remove(), 300);
+  }, 3000);
+}
 
 
-// ============================================
-// TODO: Create resetToStart() function
-// ============================================
-// 1. Clear questionsContainer
-// 2. Reset form values
-// 3. Show the form (remove 'hidden' class)
-// 4. Set currentQuiz = null
+function resetToStart() {
+  questionsContainer.innerHTML = '';
+  quizOptionsForm.reset();
+  quizOptionsForm.classList.remove('hidden');
+  currentQuiz = null;
+}
 
 
-// ============================================
-// TODO: Create async startQuiz() function
-// ============================================
-// This is the main function, called when Start button is clicked
-//
-// Steps:
-// 1. Validate the form
-// 2. If not valid, show error and return
-// 3. Get form values:
-//    - playerName (use 'Player' if empty)
-//    - category
-//    - difficulty
-//    - numberOfQuestions
-// 4. Create new Quiz instance
-// 5. Hide the form (add 'hidden' class)
-// 6. Show loading spinner
-// 7. Try to fetch questions:
-//    - await currentQuiz.getQuestions()
-//    - Hide loading
-//    - Check if questions exist
-//    - Create first Question and display it
-// 8. Catch any errors:
-//    - Hide loading
-//    - Show error message
+async function startQuiz() {
+  const validation = validateForm();
+
+  if (!validation.isValid) {
+    showFormError(validation.error);
+    return;
+  }
+
+  const playerName = playerNameInput.value.trim() || 'Player';
+  const category = categoryInput.value;
+  const difficulty = difficultyOptions.value;
+  const numberOfQuestions = Number(questionsNumber.value);
+
+  currentQuiz = new Quiz(category, difficulty, numberOfQuestions, playerName);
+  quizOptionsForm.classList.add('hidden');
+  showLoading();
+
+  try {
+    const params = new URLSearchParams({
+      amount: numberOfQuestions,
+      difficulty,
+      type: 'multiple'
+    });
+
+    if (category) {
+      params.set('category', category);
+    }
+
+    const response = await fetch(`https://opentdb.com/api.php?${params}`);
+
+    if (!response.ok) {
+      throw new Error('Unable to load questions. Please try again.');
+    }
+
+    const data = await response.json();
+
+    if (data.response_code !== 0 || !data.results?.length) {
+      throw new Error('No questions were found. Please try different options.');
+    }
+
+    const questions = data.results;
+    console.log(questions)
+    currentQuiz.questions = questions;
+    hideLoading();
+
+    const question = new Question(currentQuiz, questionsContainer, () => {
+      questionsContainer.innerHTML = currentQuiz.endQuiz();
+    });
+    question.displayQuestion();
+  } catch (error) {
+    hideLoading();
+    showError(error.message || 'Unable to load questions. Please try again.');
+  }
+}
 
 
-// ============================================
-// TODO: Add Event Listeners
-// ============================================
-// 1. startQuizBtn click -> call startQuiz()
-// 2. questionsNumber keydown -> if Enter, call startQuiz()
+startQuizBtn.addEventListener('click', startQuiz);
+
+questionsNumber.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    startQuiz();
+  }
+});
 
