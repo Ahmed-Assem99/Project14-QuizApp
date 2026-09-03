@@ -33,77 +33,168 @@
 
 export default class Quiz {
   
-  // TODO: Create constructor
-  // Initialize all properties mentioned above
+  constructor(category, difficulty, numberOfQuestions, playerName) {
+    this.category = category;
+    this.difficulty = difficulty;
+    this.numberOfQuestions = numberOfQuestions;
+    this.playerName = playerName;
+    this.score = 0;
+    this.questions = [];
+    this.currentQuestionIndex = 0;
+  }
   
   
-  // TODO: Create async getQuestions() method
-  // 1. Build the API URL using buildApiUrl()
-  // 2. Use fetch() to get data
-  // 3. Check if response.ok, throw error if not
-  // 4. Parse JSON: const data = await response.json()
-  // 5. Check if data.response_code === 0 (success)
-  // 6. Store data.results in this.questions
-  // 7. Return this.questions
+  async getQuestions() {
+    const response = await fetch(this.buildApiUrl());
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch questions: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.response_code !== 0) {
+      throw new Error("Unable to retrieve questions for the selected options.");
+    }
+
+    this.questions = data.results;
+    return this.questions;
+  }
   
   
-  // TODO: Create buildApiUrl() method
-  // Use URLSearchParams to build query string
-  // Example result: "https://opentdb.com/api.php?amount=10&difficulty=easy"
+  buildApiUrl() {
+    const params = new URLSearchParams({
+      amount: this.numberOfQuestions,
+      difficulty: this.difficulty,
+      type: 'multiple'
+    });
+
+    if (this.category) {
+      params.set('category', this.category);
+    }
+
+    return `https://opentdb.com/api.php?${params}`;
+  }
   
   
-  // TODO: Create incrementScore() method
-  // Simply add 1 to this.score
+  incrementScore() {
+    this.score += 1;
+  }
   
   
-  // TODO: Create getCurrentQuestion() method
-  // Return this.questions[this.currentQuestionIndex]
-  // Return null if index is out of bounds
+  getCurrentQuestion() {
+    return this.questions[this.currentQuestionIndex] ?? null;
+  }
   
   
-  // TODO: Create nextQuestion() method
-  // Increment currentQuestionIndex
-  // Return true if there are more questions
-  // Return false if quiz is complete
+  nextQuestion() {
+    this.currentQuestionIndex += 1;
+    return this.currentQuestionIndex < this.questions.length;
+  }
   
   
-  // TODO: Create isComplete() method
-  // Return true if currentQuestionIndex >= questions.length
+  isComplete() {
+    return this.currentQuestionIndex >= this.questions.length;
+  }
   
   
-  // TODO: Create getScorePercentage() method
-  // Calculate: (score / numberOfQuestions) * 100
-  // Round to whole number using Math.round()
+  getScorePercentage() {
+    return Math.round((this.score / this.numberOfQuestions) * 100);
+  }
   
   
-  // TODO: Create saveHighScore() method
-  // 1. Get existing high scores using getHighScores()
-  // 2. Create new score object: { name, score, total, percentage, difficulty, date }
-  // 3. Push to array
-  // 4. Sort by percentage (highest first)
-  // 5. Keep only top 10
-  // 6. Save to localStorage using JSON.stringify()
+  saveHighScore() {
+    const highScores = this.getHighScores();
+    const newScore = {
+      name: this.playerName,
+      score: this.score,
+      total: this.numberOfQuestions,
+      percentage: this.getScorePercentage(),
+      difficulty: this.difficulty,
+      date: new Date().toLocaleDateString()
+    };
+
+    highScores.push(newScore);
+    highScores.sort((a, b) => b.percentage - a.percentage);
+    localStorage.setItem('quizHighScores', JSON.stringify(highScores.slice(0, 10)));
+  }
   
   
-  // TODO: Create getHighScores() method
-  // 1. Get from localStorage using 'quizHighScores' key
-  // 2. Parse JSON
-  // 3. Return array (or empty array if nothing saved)
-  // Wrap in try/catch for safety
+  getHighScores() {
+    try {
+      const savedScores = localStorage.getItem('quizHighScores');
+      const highScores = savedScores ? JSON.parse(savedScores) : [];
+      return Array.isArray(highScores) ? highScores : [];
+    } catch {
+      return [];
+    }
+  }
   
   
-  // TODO: Create isHighScore() method
-  // Return true if:
-  // - Less than 10 saved, OR
-  // - Current percentage beats the lowest saved score
+  isHighScore() {
+    const highScores = this.getHighScores();
+
+    if (highScores.length < 10) {
+      return true;
+    }
+
+    const currentPercentage = this.getScorePercentage();
+    let lowestPercentage = highScores[0].percentage;
+
+    for (let index = 1; index < highScores.length; index += 1) {
+      if (highScores[index].percentage < lowestPercentage) {
+        lowestPercentage = highScores[index].percentage;
+      }
+    }
+
+    return currentPercentage > lowestPercentage;
+  }
   
   
-  // TODO: Create endQuiz() method
-  // 1. Calculate percentage
-  // 2. Check if it's a high score
-  // 3. If yes, save it (BEFORE getting high scores for display)
-  // 4. Get high scores (AFTER saving)
-  // 5. Return HTML string for results screen
-  //    (See index.html for the HTML structure to use)
+  endQuiz() {
+    const percentage = this.getScorePercentage();
+    const isHighScore = this.isHighScore();
+
+    if (isHighScore) {
+      this.saveHighScore();
+    }
+
+    const highScores = this.getHighScores();
+    const leaderboardItems = highScores.map((highScore, index) => {
+      const rankClass = index === 0 ? ' gold' : index === 1 ? ' silver' : index === 2 ? ' bronze' : '';
+
+      return `
+        <li class="leaderboard-item${rankClass}">
+          <span class="leaderboard-rank">#${index + 1}</span>
+          <span class="leaderboard-name">${highScore.name}</span>
+          <span class="leaderboard-score">${highScore.percentage}%</span>
+        </li>
+      `;
+    }).join('');
+
+    return `
+      <div class="game-card results-card">
+        <h2 class="results-title">Quiz Complete!</h2>
+        <p class="results-score-display">${this.score}/${this.numberOfQuestions}</p>
+        <p class="results-percentage">${percentage}% Accuracy</p>
+        ${isHighScore ? `
+          <div class="new-record-badge">
+            <i class="fa-solid fa-star"></i> New High Score!
+          </div>
+        ` : ''}
+        <div class="leaderboard">
+          <h4 class="leaderboard-title">
+            <i class="fa-solid fa-trophy"></i> Leaderboard
+          </h4>
+          <ul class="leaderboard-list">${leaderboardItems}</ul>
+        </div>
+        <div class="action-buttons">
+          <button class="btn-restart">
+            <i class="fa-solid fa-rotate-right"></i> Play Again
+          </button>
+        </div>
+      </div>
+    `;
+  }
   
 }

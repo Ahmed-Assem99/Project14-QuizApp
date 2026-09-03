@@ -57,82 +57,170 @@
 
 export default class Question {
   
-  // TODO: Create constructor(quiz, container, onQuizEnd)
-  // 1. Store the three parameters
-  // 2. Get question data: this.questionData = quiz.getCurrentQuestion()
-  // 3. Store index: this.index = quiz.currentQuestionIndex
-  // 4. Decode and store: question, correctAnswer, category
-  // 5. Decode wrong answers (use .map())
-  // 6. Shuffle all answers
-  // 7. Initialize: answered = false, timerInterval = null, timeRemaining
+  constructor(quiz, container, onQuizEnd) {
+    this.quiz = quiz;
+    this.container = container;
+    this.onQuizEnd = onQuizEnd;
+    this.questionData = quiz.getCurrentQuestion();
+    this.index = quiz.currentQuestionIndex;
+    this.question = this.decodeHtml(this.questionData.question);
+    this.correctAnswer = this.decodeHtml(this.questionData.correct_answer);
+    this.category = this.decodeHtml(this.questionData.category);
+    this.wrongAnswers = this.questionData.incorrect_answers.map(answer => this.decodeHtml(answer));
+    this.allAnswers = this.shuffleAnswers();
+    this.answered = false;
+    this.timerInterval = null;
+    this.timeRemaining = 30;
+  }
   
   
-  // TODO: Create decodeHtml(html) method
-  // Use DOMParser to decode HTML entities
+  decodeHtml(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.documentElement.textContent;
+  }
   
   
-  // TODO: Create shuffleAnswers() method
-  // 1. Combine wrongAnswers and correctAnswer into one array
-  // 2. Shuffle using Fisher-Yates algorithm
-  // 3. Return shuffled array
+  shuffleAnswers() {
+    const answers = [...this.wrongAnswers, this.correctAnswer];
+
+    for (let i = answers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [answers[i], answers[j]] = [answers[j], answers[i]];
+    }
+
+    return answers;
+  }
   
   
-  // TODO: Create getProgress() method
-  // Calculate: ((index + 1) / quiz.numberOfQuestions) * 100
-  // Round to whole number
+  getProgress() {
+    return Math.round(((this.index + 1) / this.quiz.numberOfQuestions) * 100);
+  }
   
   
-  // TODO: Create displayQuestion() method
-  // 1. Create HTML string for the question card
-  //    (See index.html for the structure to use)
-  // 2. Use template literals with ${} for dynamic data
-  // 3. Set this.container.innerHTML = yourHTML
-  // 4. Call this.addEventListeners()
-  // 5. Call this.startTimer()
+  displayQuestion() {
+    const answers = this.allAnswers.map((answer, index) => `
+      <button class="answer-btn" data-answer="${answer}">
+        <span class="answer-key">${index + 1}</span>
+        <span class="answer-text">${answer}</span>
+      </button>
+    `).join('');
+
+    this.container.innerHTML = `
+      <div class="game-card question-card">
+        <div class="xp-bar-container">
+          <div class="xp-bar-header">
+            <span class="xp-label"><i class="fa-solid fa-bolt"></i> Progress</span>
+            <span class="xp-value">Question ${this.index + 1}/${this.quiz.numberOfQuestions}</span>
+          </div>
+          <div class="xp-bar"><div class="xp-bar-fill" style="width: ${this.getProgress()}%"></div></div>
+        </div>
+        <div class="stats-row">
+          <div class="stat-badge category"><i class="fa-solid fa-bookmark"></i><span>${this.category}</span></div>
+          <div class="stat-badge difficulty ${this.quiz.difficulty}"><i class="fa-solid fa-gauge-high"></i><span>${this.quiz.difficulty}</span></div>
+          <div class="stat-badge timer"><i class="fa-solid fa-stopwatch"></i><span class="timer-value">${this.timeRemaining}</span>s</div>
+          <div class="stat-badge counter"><i class="fa-solid fa-gamepad"></i><span>${this.index + 1}/${this.quiz.numberOfQuestions}</span></div>
+        </div>
+        <h2 class="question-text">${this.question}</h2>
+        <div class="answers-grid">${answers}</div>
+        <p class="keyboard-hint"><i class="fa-regular fa-keyboard"></i> Press 1-4 to select</p>
+        <div class="score-panel"><div class="score-item"><div class="score-item-label">Score</div><div class="score-item-value">${this.quiz.score}</div></div></div>
+      </div>
+    `;
+
+    this.addEventListeners();
+    this.startTimer();
+  }
   
   
-  // TODO: Create addEventListeners() method
-  // 1. Get all answer buttons: document.querySelectorAll('.answer-btn')
-  // 2. Add click event to each: call this.checkAnswer(button)
-  // 3. Add keyboard support: listen for keys 1-4
-  //    Valid keys are: ['1', '2', '3', '4']
+  addEventListeners() {
+    const answerButtons = document.querySelectorAll('.answer-btn');
+
+    answerButtons.forEach(button => {
+      button.addEventListener('click', () => this.checkAnswer(button));
+    });
+
+    this.handleKeydown = event => {
+      const answerIndex = ['1', '2', '3', '4'].indexOf(event.key);
+      if (answerIndex !== -1 && answerButtons[answerIndex]) {
+        this.checkAnswer(answerButtons[answerIndex]);
+      }
+    };
+
+    document.addEventListener('keydown', this.handleKeydown);
+  }
   
   
-  // TODO: Create removeEventListeners() method
-  // Remove any keyboard listeners you added
+  removeEventListeners() {
+    document.removeEventListener('keydown', this.handleKeydown);
+  }
   
   
-  // TODO: Create startTimer() method
-  // 1. Get timer display element
-  // 2. Use setInterval to run every 1000ms (1 second)
-  // 3. Decrement timeRemaining
-  // 4. Update the display
-  // 5. If timeRemaining <= 10 seconds, add 'warning' class
-  // 6. If timeRemaining <= 0, call stopTimer() and handleTimeUp()
+  startTimer() {
+    const timerDisplay = this.container.querySelector('.timer-value');
+
+    this.timerInterval = setInterval(() => {
+      this.timeRemaining--;
+      timerDisplay.textContent = this.timeRemaining;
+
+      if (this.timeRemaining <= 10) {
+        timerDisplay.parentElement.classList.add('warning');
+      }
+
+      if (this.timeRemaining <= 0) {
+        this.stopTimer();
+        this.handleTimeUp();
+      }
+    }, 1000);
+  }
   
   
-  // TODO: Create stopTimer() method
-  // Use clearInterval(this.timerInterval)
+  stopTimer() {
+    clearInterval(this.timerInterval);
+  }
   
   
-  // TODO: Create handleTimeUp() method
-  // 1. Set answered = true
-  // 2. Call removeEventListeners()
-  // 3. Show correct answer (add 'correct' class)
-  // 4. Show "TIME'S UP!" message
-  // 5. Call animateQuestion() after a delay
+  handleTimeUp() {
+    this.answered = true;
+    this.removeEventListeners();
+
+    const answerButtons = this.container.querySelectorAll('.answer-btn');
+    const correctButton = [...answerButtons].find(button =>
+      button.dataset.answer.toLowerCase() === this.correctAnswer.toLowerCase()
+    );
+
+    correctButton?.classList.add('correct');
+    this.container.querySelector('.answers-grid').insertAdjacentHTML(
+      'afterend',
+      '<div class="time-up-message"><i class="fa-solid fa-clock"></i> TIME\'S UP!</div>'
+    );
+
+    setTimeout(() => this.animateQuestion(), 1000);
+  }
   
   
-  // TODO: Create checkAnswer(choiceElement) method
-  // 1. If already answered, return early
-  // 2. Set answered = true
-  // 3. Stop the timer
-  // 4. Get selected answer from data-answer attribute
-  // 5. Compare with correctAnswer (case insensitive)
-  // 6. If correct: add 'correct' class, call quiz.incrementScore()
-  // 7. If wrong: add 'wrong' class, call highlightCorrectAnswer()
-  // 8. Disable other buttons (add 'disabled' class)
-  // 9. Call animateQuestion()
+  checkAnswer(choiceElement) {
+    if (this.answered) return;
+
+    this.answered = true;
+    this.stopTimer();
+
+    const selectedAnswer = choiceElement.dataset.answer;
+    const isCorrect = selectedAnswer.toLowerCase() === this.correctAnswer.toLowerCase();
+
+    if (isCorrect) {
+      choiceElement.classList.add('correct');
+      this.quiz.incrementScore();
+    } else {
+      choiceElement.classList.add('wrong');
+      this.highlightCorrectAnswer();
+    }
+
+    this.container.querySelectorAll('.answer-btn').forEach(button => {
+      if (button !== choiceElement) button.classList.add('disabled');
+    });
+
+    this.animateQuestion();
+  }
   
   
   // TODO: Create highlightCorrectAnswer() method
