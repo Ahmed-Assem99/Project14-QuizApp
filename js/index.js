@@ -156,36 +156,8 @@ async function startQuiz() {
   showLoading();
 
   try {
-    // Build URL query parameters safely for the trivia API request.
-    const params = new URLSearchParams({
-      amount: numberOfQuestions,
-      difficulty,
-      type: 'multiple'
-    });
-
-    // Only send a category filter when the player selected one.
-    if (category) {
-      params.set('category', category);
-    }
-
-    // Wait for the API to return the requested questions.
-    const response = await fetch(`https://opentdb.com/api.php?${params}`);
-
-    if (!response.ok) {
-      throw new Error('Unable to load questions. Please try again.');
-    }
-
-    // Convert the JSON response into a JavaScript object.
-    const data = await response.json();
-
-    if (data.response_code !== 0 || !data.results?.length) {
-      throw new Error('No questions were found. Please try different options.');
-    }
-
-    // Save the returned questions, then render the first one.
-    const questions = data.results;
-    console.log(questions)
-    currentQuiz.questions = questions;
+    // Quiz owns the API request and stores the returned questions.
+    await currentQuiz.getQuestions();
     hideLoading();
 
     // Pass a callback that renders the results when the final question is answered.

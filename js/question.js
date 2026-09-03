@@ -223,21 +223,37 @@ export default class Question {
   }
   
   
-  // TODO: Create highlightCorrectAnswer() method
-  // Find the button with correct answer and add 'correct-reveal' class
+  highlightCorrectAnswer() {
+    const correctAnswer = this.correctAnswer.toLowerCase();
+    this.container.querySelectorAll('.answer-btn').forEach(button => {
+      if (button.dataset.answer.toLowerCase() === correctAnswer) {
+        button.classList.add('correct-reveal');
+      }
+    });
+  }
   
   
-  // TODO: Create getNextQuestion() method
-  // 1. Call quiz.nextQuestion()
-  // 2. If returns true: create new Question and display it
-  // 3. If returns false: show results using quiz.endQuiz()
-  //    Also add click listener to Play Again button
+  getNextQuestion() {
+    this.removeEventListeners();
+
+    if (this.quiz.nextQuestion()) {
+      const nextQuestion = new Question(this.quiz, this.container, this.onQuizEnd);
+      nextQuestion.displayQuestion();
+      return;
+    }
+
+    this.onQuizEnd();
+    this.container.querySelector('.btn-restart').addEventListener('click', () => {
+      window.location.reload();
+    });
+  }
   
   
-  // TODO: Create animateQuestion(duration) method
-  // 1. Wait for 1500ms (transition delay)
-  // 2. Add 'exit' class to question card
-  // 3. Wait for duration
-  // 4. Call getNextQuestion()
+  animateQuestion(duration = 400) {
+    setTimeout(() => {
+      this.container.querySelector('.question-card')?.classList.add('exit');
+      setTimeout(() => this.getNextQuestion(), duration);
+    }, 1500);
+  }
   
 }
